@@ -11,5 +11,4 @@
     <HelixContent Include="js\*.*" LinkBase="js" />   
   </ItemGroup>
 
-   
 </Project>
