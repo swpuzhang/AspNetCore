@@ -3,13 +3,16 @@
 
 using System;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
 
 namespace Microsoft.AspNetCore.Mvc.ViewFeatures
 {
     internal class HttpUriHelper : UriHelperBase
     {
+        protected override void EnableLocationChangeEvents()
+        {
+            // Nothing to do here.
+        }
+
         protected override void NavigateToCore(string uri, bool forceLoad)
         {
             // For now throw as we don't have a good way of aborting the request from here.

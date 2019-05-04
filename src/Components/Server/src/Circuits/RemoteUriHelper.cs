@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
@@ -14,8 +15,9 @@ namespace Microsoft.AspNetCore.Components.Server.Circuits
     /// </summary>
     public class RemoteUriHelper : UriHelperBase
     {
-        private IJSRuntime _jsRuntime;
         private readonly ILogger<RemoteUriHelper> _logger;
+        private IJSRuntime _jsRuntime;
+        private bool _enableNavigationInterception;
 
         /// <summary>
         /// Creates a new <see cref="RemoteUriHelper"/> instance.
@@ -53,19 +55,19 @@ namespace Microsoft.AspNetCore.Components.Server.Circuits
                 throw new InvalidOperationException("JavaScript runtime already initialized.");
             }
             _jsRuntime = jsRuntime;
-            _jsRuntime.InvokeAsync<object>(
-                    Interop.EnableNavigationInterception,
-                    typeof(RemoteUriHelper).Assembly.GetName().Name,
-                    nameof(NotifyLocationChanged));
-
             _logger.LogDebug($"{nameof(RemoteUriHelper)} initialized.");
+
+            if (_enableNavigationInterception)
+            {
+                EnableNavigationInterception();
+            }
         }
 
         /// <summary>
         /// For framework use only.
         /// </summary>
         [JSInvokable(nameof(NotifyLocationChanged))]
-        public static void NotifyLocationChanged(string uriAbsolute)
+        public static void NotifyLocationChanged(string uriAbsolute, bool interceptedLink)
         {
             var circuit = CircuitHost.Current;
             if (circuit == null)
@@ -75,17 +77,29 @@ namespace Microsoft.AspNetCore.Components.Server.Circuits
             }
 
             var uriHelper = (RemoteUriHelper)circuit.Services.GetRequiredService<IUriHelper>();
+            if (interceptedLink)
+            {
+                // UriHelper intercepted a browser location change. If the Router cannot handle this, we must force a navigation
+                // so that the user can get to the location they needed to get to.
+                var routing = circuit.Services.GetRequiredService<RouteState>();
+                if (!routing.CanHandleRoute(uriAbsolute))
+                {
+                    // We do not have an entry corresponding to the incoming route. That is, this is not a component.
+                    // Perform a regular browser navigation instead.
+                    uriHelper.NavigateTo(uriAbsolute, forceLoad: true);
+                    return;
+                }
+            }
 
             uriHelper.SetAbsoluteUri(uriAbsolute);
-
-            uriHelper._logger.LogDebug($"Location changed to '{uriAbsolute}'.");
+            uriHelper._logger.LogTrace($"Location changed to '{uriAbsolute}'.");
             uriHelper.TriggerOnLocationChanged();
         }
 
         /// <inheritdoc />
         protected override void NavigateToCore(string uri, bool forceLoad)
         {
-            _logger.LogDebug($"Log debug {uri} force load {forceLoad}.");
+            _logger.LogTrace($"{uri} force load {forceLoad}.");
 
             if (_jsRuntime == null)
             {
@@ -95,6 +109,25 @@ namespace Microsoft.AspNetCore.Components.Server.Circuits
                     "attempted during prerendering or while the client is disconnected.");
             }
             _jsRuntime.InvokeAsync<object>(Interop.NavigateTo, uri, forceLoad);
+        }
+
+        /// <inheritdoc />
+        protected override void EnableLocationChangeEvents()
+        {
+            _enableNavigationInterception = true;
+
+            if (HasAttachedJSRuntime)
+            {
+                EnableNavigationInterception();
+            }
+        }
+
+        private void EnableNavigationInterception()
+        {
+            _jsRuntime.InvokeAsync<object>(
+                Interop.EnableNavigationInterception,
+                typeof(RemoteUriHelper).Assembly.GetName().Name,
+                nameof(NotifyLocationChanged));
         }
     }
 }

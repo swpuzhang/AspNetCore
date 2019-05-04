@@ -10,6 +10,7 @@ namespace Microsoft.AspNetCore.Components
     /// </summary>
     public abstract class UriHelperBase : IUriHelper
     {
+        private bool _locationChangeSetup;
         private EventHandler<string> _onLocationChanged;
 
         /// <summary>
@@ -21,6 +22,12 @@ namespace Microsoft.AspNetCore.Components
             {
                 AssertInitialized();
                 _onLocationChanged += value;
+
+                if (!_locationChangeSetup)
+                {
+                    _locationChangeSetup = true;
+                    EnableLocationChangeEvents();
+                }
             }
             remove
             {
@@ -209,6 +216,11 @@ namespace Microsoft.AspNetCore.Components
         {
             _onLocationChanged?.Invoke(this, _uri);
         }
+
+        /// <summary>
+        /// Sets up this instance of <see cref="IUriHelper"/> to raise location change events.
+        /// </summary>
+        protected abstract void EnableLocationChangeEvents();
 
         private void AssertInitialized()
         {

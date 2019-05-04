@@ -14914,33 +14914,36 @@ function enableNavigationInterception(assemblyName, functionName) {
             // Don't stop ctrl/meta-click (etc) from opening links in new tabs/windows
             if (isWithinBaseUriSpace(absoluteHref) && !eventHasSpecialKey(event) && opensInSameFrame) {
                 event.preventDefault();
-                performInternalNavigation(absoluteHref);
+                performInternalNavigation(absoluteHref, true);
             }
         }
     });
-    window.addEventListener('popstate', handleInternalNavigation);
+    window.addEventListener('popstate', function () { return notifyLocationChanged(false); });
+    // navigation interception is defered until the .NET UrlHelper requires it. Once we've wired up things,
+    // we'll notify .NET where the browser is currently at.
+    notifyLocationChanged(false);
 }
 function navigateTo(uri, forceLoad) {
     var absoluteUri = toAbsoluteUri(uri);
     if (!forceLoad && isWithinBaseUriSpace(absoluteUri)) {
-        performInternalNavigation(absoluteUri);
+        performInternalNavigation(absoluteUri, false);
     }
     else {
         location.href = uri;
     }
 }
 exports.navigateTo = navigateTo;
-function performInternalNavigation(absoluteInternalHref) {
+function performInternalNavigation(absoluteInternalHref, interceptedLink) {
     history.pushState(null, /* ignored title */ '', absoluteInternalHref);
-    handleInternalNavigation();
+    notifyLocationChanged(interceptedLink);
 }
-function handleInternalNavigation() {
+function notifyLocationChanged(interceptedLink) {
     return __awaiter(this, void 0, void 0, function () {
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     if (!notifyLocationChangedCallback) return [3 /*break*/, 2];
-                    return [4 /*yield*/, DotNet.invokeMethodAsync(notifyLocationChangedCallback.assemblyName, notifyLocationChangedCallback.functionName, location.href)];
+                    return [4 /*yield*/, DotNet.invokeMethodAsync(notifyLocationChangedCallback.assemblyName, notifyLocationChangedCallback.functionName, location.href, interceptedLink)];
                 case 1:
                     _a.sent();
                     _a.label = 2;

@@ -11,18 +11,6 @@ namespace Microsoft.AspNetCore.Blazor.Services.Test
         private WebAssemblyUriHelper _uriHelper = new WebAssemblyUriHelper();
 
         [Theory]
-        [InlineData("scheme://host/", "scheme://host/")]
-        [InlineData("scheme://host:123/", "scheme://host:123/")]
-        [InlineData("scheme://host/path", "scheme://host/")]
-        [InlineData("scheme://host/path/", "scheme://host/path/")]
-        [InlineData("scheme://host/path/page?query=string&another=here", "scheme://host/path/")]
-        public void ComputesCorrectBaseUri(string baseUri, string expectedResult)
-        {
-            var actualResult = WebAssemblyUriHelper.ToBaseUri(baseUri);
-            Assert.Equal(expectedResult, actualResult);
-        }
-
-        [Theory]
         [InlineData("scheme://host/", "scheme://host", "")]
         [InlineData("scheme://host/", "scheme://host/", "")]
         [InlineData("scheme://host/", "scheme://host/path", "path")]

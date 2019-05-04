@@ -35,35 +35,40 @@ function enableNavigationInterception(assemblyName: string, functionName: string
       // Don't stop ctrl/meta-click (etc) from opening links in new tabs/windows
       if (isWithinBaseUriSpace(absoluteHref) && !eventHasSpecialKey(event) && opensInSameFrame) {
         event.preventDefault();
-        performInternalNavigation(absoluteHref);
+        performInternalNavigation(absoluteHref, true);
       }
     }
   });
 
-  window.addEventListener('popstate', handleInternalNavigation);
+  window.addEventListener('popstate', () => notifyLocationChanged(false));
+
+  // navigation interception is defered until the .NET UrlHelper requires it. Once we've wired up things,
+  // we'll notify .NET where the browser is currently at.
+  notifyLocationChanged(false);
 }
 
 export function navigateTo(uri: string, forceLoad: boolean) {
   const absoluteUri = toAbsoluteUri(uri);
 
   if (!forceLoad && isWithinBaseUriSpace(absoluteUri)) {
-    performInternalNavigation(absoluteUri);
+    performInternalNavigation(absoluteUri, false);
   } else {
     location.href = uri;
   }
 }
 
-function performInternalNavigation(absoluteInternalHref: string) {
+function performInternalNavigation(absoluteInternalHref: string, interceptedLink: boolean) {
   history.pushState(null, /* ignored title */ '', absoluteInternalHref);
-  handleInternalNavigation();
+  notifyLocationChanged(interceptedLink);
 }
 
-async function handleInternalNavigation() {
+async function notifyLocationChanged(interceptedLink: boolean) {
   if (notifyLocationChangedCallback) {
     await DotNet.invokeMethodAsync(
       notifyLocationChangedCallback.assemblyName,
       notifyLocationChangedCallback.functionName,
-      location.href
+      location.href,
+      interceptedLink
     );
   }
 }

@@ -16,13 +16,12 @@ namespace Microsoft.AspNetCore.Components.Routing
     /// </summary>
     public class Router : IComponent, IDisposable
     {
-        static readonly char[] _queryOrHashStartChar = new[] { '?', '#' };
-
-        RenderHandle _renderHandle;
-        string _baseUri;
-        string _locationAbsolute;
+        private RenderHandle _renderHandle;
+        private string _locationAbsolute;
 
         [Inject] private IUriHelper UriHelper { get; set; }
+
+        [Inject] private RouteState RouteState { get; set; }
 
         /// <summary>
         /// Gets or sets the assembly that should be searched, along with its referenced
@@ -31,17 +30,14 @@ namespace Microsoft.AspNetCore.Components.Routing
         [Parameter] public Assembly AppAssembly { get; private set; }
         
         /// <summary>
-        /// Gets or sets the type of the component that should be used as a fallback when no match is found for the requested route.
+        /// Gets or sets the content to render when no match is found for the requested route.
         /// </summary>
-        [Parameter] public Type FallbackComponent { get; private set; }
-
-        private RouteTable Routes { get; set; }
+        [Parameter] public RenderFragment NotFoundContent { get; private set; }
 
         /// <inheritdoc />
         public void Configure(RenderHandle renderHandle)
         {
             _renderHandle = renderHandle;
-            _baseUri = UriHelper.GetBaseUri();
             _locationAbsolute = UriHelper.GetAbsoluteUri();
             UriHelper.OnLocationChanged += OnLocationChanged;
         }
@@ -51,8 +47,12 @@ namespace Microsoft.AspNetCore.Components.Routing
         {
             parameters.SetParameterProperties(this);
             var types = ComponentResolver.ResolveComponents(AppAssembly);
-            Routes = RouteTable.Create(types);
+
+            var routes = RouteTable.Create(types);
+            RouteState.Initialize(routes, UriHelper.GetBaseUri());
+
             Refresh();
+
             return Task.CompletedTask;
         }
 
@@ -60,14 +60,6 @@ namespace Microsoft.AspNetCore.Components.Routing
         public void Dispose()
         {
             UriHelper.OnLocationChanged -= OnLocationChanged;
-        }
-
-        private string StringUntilAny(string str, char[] chars)
-        {
-            var firstIndex = str.IndexOfAny(chars);
-            return firstIndex < 0
-                ? str
-                : str.Substring(0, firstIndex);
         }
 
         /// <inheritdoc />
@@ -81,36 +73,26 @@ namespace Microsoft.AspNetCore.Components.Routing
 
         private void Refresh()
         {
-            var locationPath = UriHelper.ToBaseRelativePath(_baseUri, _locationAbsolute);
-            locationPath = StringUntilAny(locationPath, _queryOrHashStartChar);
-            var context = new RouteContext(locationPath);
-            Routes.Route(context);
-
-            if (context.Handler == null)
+            var context = RouteState.GetRouteContext(_locationAbsolute);
+            RouteState.Routes.Route(context);
+            if (context.Handler != null)
             {
-                if (FallbackComponent != null)
-                {
-                    context.Handler = FallbackComponent;
-                }
-                else
-                {
-                    throw new InvalidOperationException($"'{nameof(Router)}' cannot find any component with a route for '/{locationPath}', and no fallback is defined.");
-                }
+                _renderHandle.Render(builder => Render(builder, context.Handler, context.Parameters));
             }
-
-            if (!typeof(IComponent).IsAssignableFrom(context.Handler))
+            else if (NotFoundContent != null)
             {
-                throw new InvalidOperationException($"The type {context.Handler.FullName} " +
-                    $"does not implement {typeof(IComponent).FullName}.");
+                _renderHandle.Render(NotFoundContent);
             }
-
-            _renderHandle.Render(builder => Render(builder, context.Handler, context.Parameters));
+            else
+            {
+                throw new InvalidOperationException($"'{nameof(Router)}' cannot find any component with a route for '/{context.Path}', and {nameof(NotFoundContent)} is not specified.");
+            }
         }
 
         private void OnLocationChanged(object sender, string newAbsoluteUri)
         {
             _locationAbsolute = newAbsoluteUri;
-            if (_renderHandle.IsInitialized)
+            if (_renderHandle.IsInitialized && RouteState.IsInitialized)
             {
                 Refresh();
             }

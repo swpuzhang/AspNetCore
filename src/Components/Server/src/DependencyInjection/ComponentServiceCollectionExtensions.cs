@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.BlazorPack;
 using Microsoft.AspNetCore.Components.Server.Circuits;
@@ -55,6 +56,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IUriHelper, RemoteUriHelper>();
             services.AddScoped<IJSRuntime, RemoteJSRuntime>();
             services.AddScoped<IComponentContext, RemoteComponentContext>();
+            services.AddScoped<RouteState>();
 
             return services;
         }

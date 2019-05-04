@@ -3,6 +3,7 @@
 
 using System;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.JSInterop;
 using Interop = Microsoft.AspNetCore.Components.Browser.BrowserUriHelperInterop;
 
@@ -25,14 +26,11 @@ namespace Microsoft.AspNetCore.Blazor.Services
         {
         }
 
+        internal RouteState RouteState { get; } = new RouteState();
+
         protected override void EnsureInitialized()
         {
-            WebAssemblyJSRuntime.Instance.Invoke<object>(
-                Interop.EnableNavigationInterception,
-                typeof(WebAssemblyUriHelper).Assembly.GetName().Name,
-                nameof(NotifyLocationChanged));
-
-            // As described in the comment block above, BrowserUriHelper is only for
+            // As described in the comment block above, WebAssemblyUriHelper is only for
             // client-side (Mono) use, so it's OK to rely on synchronicity here.
             var baseUri = WebAssemblyJSRuntime.Instance.Invoke<string>(Interop.GetBaseUri);
             var uri = WebAssemblyJSRuntime.Instance.Invoke<string>(Interop.GetLocationHref);
@@ -54,32 +52,32 @@ namespace Microsoft.AspNetCore.Blazor.Services
         /// For framework use only.
         /// </summary>
         [JSInvokable(nameof(NotifyLocationChanged))]
-        public static void NotifyLocationChanged(string newAbsoluteUri)
+        public static void NotifyLocationChanged(string uriAbsolute, bool interceptedLink)
         {
-            Instance.SetAbsoluteUri(newAbsoluteUri);
-            Instance.TriggerOnLocationChanged();
-        }
-
-        /// <summary>
-        /// Given the document's document.baseURI value, returns the URI
-        /// that can be prepended to relative URI paths to produce an absolute URI.
-        /// This is computed by removing anything after the final slash.
-        /// Internal for tests.
-        /// </summary>
-        /// <param name="absoluteBaseUri">The page's document.baseURI value.</param>
-        /// <returns>The URI prefix</returns>
-        internal static string ToBaseUri(string absoluteBaseUri)
-        {
-            if (absoluteBaseUri != null)
+            if (interceptedLink)
             {
-                var lastSlashIndex = absoluteBaseUri.LastIndexOf('/');
-                if (lastSlashIndex >= 0)
+                // UriHelper intercepted a browser location change. If the Router cannot handle this, we must force a navigation
+                // so that the user can get to the location they needed to get to.
+                if (!Instance.RouteState.CanHandleRoute(uriAbsolute))
                 {
-                    return absoluteBaseUri.Substring(0, lastSlashIndex + 1);
+                    // We do not have an entry corresponding to the incoming route. That is, this is not a component.
+                    // Perform a regular browser navigation instead.
+                    Instance.NavigateTo(uriAbsolute, forceLoad: true);
+                    return;
                 }
             }
 
-            return "/";
+            Instance.SetAbsoluteUri(uriAbsolute);
+            Instance.TriggerOnLocationChanged();
+        }
+
+        /// <inheritdoc />
+        protected override void EnableLocationChangeEvents()
+        {
+            WebAssemblyJSRuntime.Instance.Invoke<object>(
+                Interop.EnableNavigationInterception,
+                typeof(WebAssemblyUriHelper).Assembly.GetName().Name,
+                nameof(NotifyLocationChanged));
         }
     }
 }

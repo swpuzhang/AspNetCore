@@ -563,6 +563,7 @@ namespace Microsoft.AspNetCore.Components
     {
         protected UriHelperBase() { }
         public event System.EventHandler<string> OnLocationChanged { add { } remove { } }
+        protected abstract void EnableLocationChangeEvents();
         protected virtual void EnsureInitialized() { }
         public string GetAbsoluteUri() { throw null; }
         public virtual string GetBaseUri() { throw null; }
@@ -816,5 +817,10 @@ namespace Microsoft.AspNetCore.Components.Routing
     {
         Prefix = 0,
         All = 1,
+    }
+    public sealed partial class RouteState
+    {
+        public RouteState() { }
+        public bool CanHandleRoute(string path) { throw null; }
     }
 }
