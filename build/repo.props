@@ -51,7 +51,7 @@
 
     <!-- These projects are meant to be executed by tests. -->
     <ProjectToExclude Include="
-                      $(RepositoryRoot)src\Tools\Tests.Common\TestProjects\**\*.csproj;
+                      $(RepositoryRoot)src\Tools\dotnet-watch\test\TestProjects\**\*.csproj;
                       $(RepositoryRoot)src\Razor\Razor.Design\test\testassets\**\*.*proj;
                       $(RepositoryRoot)src\submodules\**\*.*proj;
                       $(RepositoryRoot)src\Installers\**\*.*proj;
